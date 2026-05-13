@@ -7,8 +7,8 @@ team project:
 - L200230014, Alfito Mahendra Pradika
 - L200230037, Isna Choiron Nasikhin
 
-## Figma Design
-🎨 [View UI/UX Design on Figma](https://www.figma.com/design/zCGJP3aZ3q23aqiRJSGMyq/PPM?node-id=0-1&t=jXUcs5KemAqWSCqS-1)
+## Design
+🎨 [View UI Design on Figma](https://www.figma.com/design/zCGJP3aZ3q23aqiRJSGMyq/PPM?node-id=0-1&t=jXUcs5KemAqWSCqS-1)
 
 ## Features
 - Task creation and management
