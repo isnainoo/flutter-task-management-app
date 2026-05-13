@@ -2,10 +2,10 @@
 
 A Flutter-based task management application for organizing and tracking daily activities.
 
-team project
-- Isna Choiron Nasikhin, L200230037
-- Alfito Mahendra Pradika, L200230014
-- Maulana Irfan Ardiansyah, L200230001
+team project:
+- L200230001, Maulana Irfan Ardiansyah
+- L200230014, Alfito Mahendra Pradika
+- L200230037, Isna Choiron Nasikhin
 
 ## Figma Design
 🎨 [View UI/UX Design on Figma](https://www.figma.com/design/zCGJP3aZ3q23aqiRJSGMyq/PPM?node-id=0-1&t=jXUcs5KemAqWSCqS-1)
