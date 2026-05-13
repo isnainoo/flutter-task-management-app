@@ -74,7 +74,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 const Text('Masuk ke akun Anda', style: AppTextStyles.screenSub),
                 const SizedBox(height: 24),
 
-                // Email field
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Text('Email', style: AppTextStyles.fieldLabel),
@@ -88,7 +87,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // Password field
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Text('Password', style: AppTextStyles.fieldLabel),
@@ -102,7 +100,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 8),
 
-                // --- TOMBOL LUPA PASSWORD ---
                 Align(
                   alignment: Alignment.centerRight,
                   child: GestureDetector(

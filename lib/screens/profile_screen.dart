@@ -43,7 +43,6 @@ class ProfileScreen extends StatelessWidget {
         child: Column(
           children: [
             const SizedBox(height: 20),
-            // Foto Profil
             Center(
               child: Container(
                 width: 100, height: 100,
@@ -56,7 +55,6 @@ class ProfileScreen extends StatelessWidget {
             Text('${username.toLowerCase()}@email.com', style: const TextStyle(fontSize: 14, color: AppColors.textSecondary)),
             const SizedBox(height: 32),
 
-            // Menu Pengaturan
             _buildMenuTile(icon: Icons.edit_outlined, title: 'Edit Profil', onTap: () {
               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Fitur Edit Profil segera hadir!')));
             }),
@@ -67,7 +65,6 @@ class ProfileScreen extends StatelessWidget {
 
             const SizedBox(height: 32),
 
-            // Tombol Logout
             SizedBox(
               width: double.infinity,
               height: 50,

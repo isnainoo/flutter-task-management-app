@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../constants/app_theme.dart';
 import '../models/task.dart';
 import '../widgets/app_widgets.dart';
-import 'profile_screen.dart'; // <-- Pastikan import ini mengarah ke file profile yang baru dibuat
+import 'profile_screen.dart';
 
 class TodoScreen extends StatefulWidget {
   final String username;
@@ -47,7 +47,6 @@ class _TodoScreenState extends State<TodoScreen> {
     super.dispose();
   }
 
-  // --- LOGIKA HELPER & UI ---
   String _getDayLabel(DateTime date) {
     final today = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
     final d = DateTime(date.year, date.month, date.day);
@@ -88,7 +87,6 @@ class _TodoScreenState extends State<TodoScreen> {
     return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
 
-  // --- LOGIKA DATA (CRUD & STATISTIK) ---
   int get _onTimeCount {
     return _tasks.where((t) {
       if (!t.isDone || t.completedAt == null) return false;
@@ -202,7 +200,6 @@ class _TodoScreenState extends State<TodoScreen> {
   List<Task> get _deadlineTasks => _activeTasks.where((t) => _isNearDeadline(t)).toList();
   int get _remainingCount => _activeTasks.length;
 
-  // --- RENDER UI UTAMA ---
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
@@ -231,7 +228,6 @@ class _TodoScreenState extends State<TodoScreen> {
               Expanded(
                 child: TabBarView(
                   children: [
-                    // TAB 1: TUGAS AKTIF
                     SingleChildScrollView(
                       child: Column(
                         children: [
@@ -242,7 +238,7 @@ class _TodoScreenState extends State<TodoScreen> {
                         ],
                       ),
                     ),
-                    // TAB 2: TUGAS SELESAI
+
                     SingleChildScrollView(
                       child: Column(
                         children: [
@@ -252,7 +248,7 @@ class _TodoScreenState extends State<TodoScreen> {
                         ],
                       ),
                     ),
-                    // TAB 3: STATISTIK
+
                     SingleChildScrollView(
                       child: _buildStatistikTab(),
                     ),
@@ -266,7 +262,6 @@ class _TodoScreenState extends State<TodoScreen> {
     );
   }
 
-  // --- WIDGETS ---
   Widget _buildHeader() {
     return Container(
       color: AppColors.cardBackground,
@@ -282,7 +277,7 @@ class _TodoScreenState extends State<TodoScreen> {
               Text('Halo, ${widget.username}! $_remainingCount tugas tersisa', style: AppTextStyles.taskDate),
             ],
           ),
-          // --- TOMBOL MENU PROFIL BARU ---
+
           GestureDetector(
             onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(username: widget.username))),
             child: Container(

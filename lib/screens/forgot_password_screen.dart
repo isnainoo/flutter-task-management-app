@@ -18,9 +18,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Masukkan email Anda terlebih dahulu.')));
       return;
     }
-    // Simulasi pengiriman link reset password
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Link reset password telah dikirim ke $email')));
-    Navigator.pop(context); // Kembali ke halaman Login
+    Navigator.pop(context);
   }
 
   @override
