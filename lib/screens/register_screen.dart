@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/app_theme.dart';
 import '../widgets/app_widgets.dart';
+import '../services/api_service.dart';
 import 'todo_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -15,8 +17,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmController = TextEditingController();
+  bool _isLoading = false;
 
-  void _register() {
+  void _register() async {
     final name = _nameController.text.trim();
     final email = _emailController.text.trim();
     final password = _passwordController.text;
@@ -43,11 +46,34 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
 
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (_) => TodoScreen(username: name, isNewUser: true)),
-      (route) => false,
-    );
+    setState(() => _isLoading = true);
+
+    final result = await ApiService.register(name, email, password);
+
+    setState(() => _isLoading = false);
+
+    if (result['user'] != null) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('user_id', result['user']['id']);
+      await prefs.setString('user_name', result['user']['name']);
+      await prefs.setString('user_email', result['user']['email']);
+
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+          builder: (_) => TodoScreen(
+            username: result['user']['name'],
+            userId: result['user']['id'],
+            isNewUser: true,
+          ),
+        ),
+        (route) => false,
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result['message'] ?? 'Registrasi gagal')),
+      );
+    }
   }
 
   @override
@@ -92,29 +118,37 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 24),
-
-                _buildField('Nama Lengkap', 'Nama Anda', Icons.person_outline, _nameController),
+                _buildField('Nama Lengkap', 'Nama Anda',
+                    Icons.person_outline, _nameController),
                 const SizedBox(height: 16),
-                _buildField('Email', 'nama@gmail.com', Icons.email_outlined, _emailController,
+                _buildField('Email', 'nama@gmail.com',
+                    Icons.email_outlined, _emailController,
                     keyboardType: TextInputType.emailAddress),
                 const SizedBox(height: 16),
-                _buildField('Password', 'Minimal 6 karakter', Icons.lock_outline, _passwordController,
+                _buildField('Password', 'Minimal 6 karakter',
+                    Icons.lock_outline, _passwordController,
                     obscure: true),
                 const SizedBox(height: 16),
-                _buildField('Konfirmasi Password', 'Ulangi password', Icons.lock_outline, _confirmController,
+                _buildField('Konfirmasi Password', 'Ulangi password',
+                    Icons.lock_outline, _confirmController,
                     obscure: true),
                 const SizedBox(height: 24),
 
-                PrimaryButton(label: 'Daftar', onPressed: _register),
-                const SizedBox(height: 16),
+                // Loading indicator saat proses register
+                _isLoading
+                    ? const CircularProgressIndicator()
+                    : PrimaryButton(label: 'Daftar', onPressed: _register),
 
+                const SizedBox(height: 16),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text('Sudah punya akun? ', style: AppTextStyles.linkText),
+                    const Text('Sudah punya akun? ',
+                        style: AppTextStyles.linkText),
                     GestureDetector(
                       onTap: () => Navigator.pop(context),
-                      child: const Text('Masuk di sini', style: AppTextStyles.linkHighlight),
+                      child: const Text('Masuk di sini',
+                          style: AppTextStyles.linkHighlight),
                     ),
                   ],
                 ),

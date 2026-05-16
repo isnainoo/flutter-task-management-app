@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/app_theme.dart';
 import '../widgets/app_widgets.dart';
+import '../services/api_service.dart';
 import 'register_screen.dart';
 import 'todo_screen.dart';
 import 'forgot_password_screen.dart';
@@ -15,8 +17,9 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  bool _isLoading = false;
 
-  void _login() {
+  void _login() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text;
 
@@ -27,14 +30,32 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    final username = email.contains('@') ? email.split('@')[0] : email;
+    setState(() => _isLoading = true);
 
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (_) => TodoScreen(username: username),
-      ),
-    );
+    final result = await ApiService.login(email, password);
+
+    setState(() => _isLoading = false);
+
+    if (result['user'] != null) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('user_id', result['user']['id']);
+      await prefs.setString('user_name', result['user']['name']);
+      await prefs.setString('user_email', result['user']['email']);
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => TodoScreen(
+            username: result['user']['name'],
+            userId: result['user']['id'],
+          ),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result['message'] ?? 'Login gagal')),
+      );
+    }
   }
 
   @override
@@ -73,7 +94,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 4),
                 const Text('Masuk ke akun Anda', style: AppTextStyles.screenSub),
                 const SizedBox(height: 24),
-
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Text('Email', style: AppTextStyles.fieldLabel),
@@ -86,7 +106,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   keyboardType: TextInputType.emailAddress,
                 ),
                 const SizedBox(height: 16),
-
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Text('Password', style: AppTextStyles.fieldLabel),
@@ -99,29 +118,37 @@ class _LoginScreenState extends State<LoginScreen> {
                   controller: _passwordController,
                 ),
                 const SizedBox(height: 8),
-
                 Align(
                   alignment: Alignment.centerRight,
                   child: GestureDetector(
-                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ForgotPasswordScreen())),
-                    child: const Text('Lupa Password?', style: AppTextStyles.linkHighlight),
+                    onTap: () => Navigator.push(context,
+                        MaterialPageRoute(
+                            builder: (_) => const ForgotPasswordScreen())),
+                    child: const Text('Lupa Password?',
+                        style: AppTextStyles.linkHighlight),
                   ),
                 ),
                 const SizedBox(height: 24),
 
-                PrimaryButton(label: 'Masuk', onPressed: _login),
-                const SizedBox(height: 16),
+                // Loading indicator saat proses login
+                _isLoading
+                    ? const CircularProgressIndicator()
+                    : PrimaryButton(label: 'Masuk', onPressed: _login),
 
+                const SizedBox(height: 16),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text('Belum punya akun? ', style: AppTextStyles.linkText),
+                    const Text('Belum punya akun? ',
+                        style: AppTextStyles.linkText),
                     GestureDetector(
                       onTap: () => Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => const RegisterScreen()),
+                        MaterialPageRoute(
+                            builder: (_) => const RegisterScreen()),
                       ),
-                      child: const Text('Daftar sekarang', style: AppTextStyles.linkHighlight),
+                      child: const Text('Daftar sekarang',
+                          style: AppTextStyles.linkHighlight),
                     ),
                   ],
                 ),
