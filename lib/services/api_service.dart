@@ -41,6 +41,32 @@ class ApiService {
     }
   }
 
+  static Future<Map<String, dynamic>> updateProfile(int userId, String name) async {
+    try {
+      final response = await http.put(
+        Uri.parse('$baseUrl/auth/update-profile/$userId'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'name': name}),
+      );
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'message': 'Tidak dapat terhubung ke server'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> updatePassword(int userId, String oldPassword, String newPassword) async {
+    try {
+      final response = await http.put(
+        Uri.parse('$baseUrl/auth/update-password/$userId'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'oldPassword': oldPassword, 'newPassword': newPassword}),
+      );
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'message': 'Tidak dapat terhubung ke server'};
+    }
+  }
+
   // ==================== TASKS ====================
 
   static Future<List<dynamic>> getTasks(int userId) async {

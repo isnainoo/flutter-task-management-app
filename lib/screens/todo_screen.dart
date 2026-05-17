@@ -2,16 +2,19 @@ import 'package:flutter/material.dart';
 import '../constants/app_theme.dart';
 import '../models/task.dart';
 import '../widgets/app_widgets.dart';
+import '../services/api_service.dart';
 import 'profile_screen.dart';
+import 'login_screen.dart';
+import '../services/notification_service.dart';
 
 class TodoScreen extends StatefulWidget {
+  final int userId;
   final String username;
-  final bool isNewUser;
 
   const TodoScreen({
     super.key,
+    required this.userId,
     required this.username,
-    this.isNewUser = false,
   });
 
   @override
@@ -23,21 +26,92 @@ class _TodoScreenState extends State<TodoScreen> {
   final _taskController = TextEditingController();
   final _linkController = TextEditingController();
   DateTime? _selectedDate;
-  int _nextId = 100;
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    if (widget.isNewUser) {
-      final now = DateTime.now();
-      _tasks = [
-        Task(id: 1, name: 'Membaca buku', deadline: now.subtract(const Duration(days: 1))),
-        Task(id: 2, name: 'Mengerjakan tugas kuliah', deadline: now, submissionLink: 'https://elearning.ums.ac.id/'),
-        Task(id: 3, name: 'Belajar untuk ujian', deadline: now.add(const Duration(days: 1))),
-        Task(id: 4, name: 'PPM kelompok ${widget.username}', deadline: now.add(const Duration(days: 14))),
-      ];
-      _nextId = 5;
+    _fetchTasks();
+  }
+
+  // API DATABASE
+
+  Future<void> _fetchTasks() async {
+    setState(() => _isLoading = true);
+    try {
+      final data = await ApiService.getTasks(widget.userId);
+      setState(() {
+        _tasks = data.map((json) => Task.fromJson(json)).toList();
+        _isLoading = false;
+      });
+
+      if (_deadlineTasks.isNotEmpty) {
+        NotificationService.showDeadlineNotification(
+          title: 'Deadline Mepet! 🚨',
+          body: 'Ada ${_deadlineTasks.length} tugas yang harus segera diselesaikan.',
+        );
+      }
+
+    } catch (e) {
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gagal memuat data dari server.')));
     }
+  }
+
+  Future<void> _addTask() async {
+    final name = _taskController.text.trim();
+    final link = _linkController.text.trim();
+    if (name.isEmpty) return;
+
+    showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
+
+    final response = await ApiService.addTask(
+      userId: widget.userId,
+      name: name,
+      deadline: _selectedDate?.toIso8601String(),
+      submissionLink: link.isNotEmpty ? link : null,
+    );
+
+    Navigator.pop(context);
+
+    if (response['message'] == 'Task ditambahkan') {
+      _taskController.clear();
+      _linkController.clear();
+      setState(() => _selectedDate = null);
+      _fetchTasks();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(response['message'] ?? 'Gagal menambah tugas')));
+    }
+  }
+
+  Future<void> _toggleTask(int id) async {
+    final taskIndex = _tasks.indexWhere((t) => t.id == id);
+    if (taskIndex == -1) return;
+
+    final task = _tasks[taskIndex];
+    final newIsDone = !task.isDone;
+    final newCompletedAt = newIsDone ? DateTime.now() : null;
+
+    setState(() {
+      _tasks[taskIndex].isDone = newIsDone;
+      _tasks[taskIndex].completedAt = newCompletedAt;
+    });
+
+    await ApiService.updateTask(
+      id: id,
+      name: task.name,
+      deadline: task.deadline?.toIso8601String(),
+      isDone: newIsDone,
+      submissionLink: task.submissionLink,
+      completedAt: newCompletedAt?.toIso8601String(),
+    );
+  }
+
+  Future<void> _deleteTask(int id) async {
+    setState(() {
+      _tasks.removeWhere((t) => t.id == id);
+    });
+    await ApiService.deleteTask(id);
   }
 
   @override
@@ -46,6 +120,7 @@ class _TodoScreenState extends State<TodoScreen> {
     _linkController.dispose();
     super.dispose();
   }
+
 
   String _getDayLabel(DateTime date) {
     final today = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
@@ -99,36 +174,33 @@ class _TodoScreenState extends State<TodoScreen> {
 
   int get _lateCount => _completedTasks.length - _onTimeCount;
 
-  void _toggleTask(int id) {
-    setState(() {
-      final idx = _tasks.indexWhere((t) => t.id == id);
-      if (idx != -1) {
-        _tasks[idx].isDone = !_tasks[idx].isDone;
-        _tasks[idx].completedAt = _tasks[idx].isDone ? DateTime.now() : null;
-      }
+  List<Task> get _sortedTasks {
+    final sorted = List<Task>.from(_tasks);
+    sorted.sort((a, b) {
+      if (a.deadline == null && b.deadline == null) return 0;
+      if (a.deadline == null) return 1;
+      if (b.deadline == null) return -1;
+      return a.deadline!.compareTo(b.deadline!);
     });
+    return sorted;
   }
 
-  void _addTask() {
-    final name = _taskController.text.trim();
-    final link = _linkController.text.trim();
-    if (name.isEmpty) return;
+  List<Task> get _activeTasks => _sortedTasks.where((t) => !t.isDone).toList();
+  List<Task> get _completedTasks => _sortedTasks.where((t) => t.isDone).toList();
+  List<Task> get _deadlineTasks => _activeTasks.where((t) => _isNearDeadline(t)).toList();
+  int get _remainingCount => _activeTasks.length;
 
-    setState(() {
-      _tasks.add(Task(
-        id: _nextId++,
-        name: name,
-        deadline: _selectedDate,
-        submissionLink: link.isNotEmpty ? link : null,
-      ));
-      _taskController.clear();
-      _linkController.clear();
-      _selectedDate = null;
-    });
-  }
-
-  void _deleteTask(int id) {
-    setState(() => _tasks.removeWhere((t) => t.id == id));
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime(2024),
+      lastDate: DateTime(2030),
+      builder: (context, child) {
+        return Theme(data: Theme.of(context).copyWith(colorScheme: const ColorScheme.light(primary: AppColors.primary)), child: child!);
+      },
+    );
+    if (picked != null) setState(() => _selectedDate = picked);
   }
 
   Future<void> _showDeleteConfirmation(Task task) async {
@@ -147,16 +219,9 @@ class _TodoScreenState extends State<TodoScreen> {
         content: Text('Apakah kamu yakin ingin menghapus tugas "${task.name}"?', style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
         actionsPadding: const EdgeInsets.only(right: 16, bottom: 16),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Batal', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w600)),
-          ),
+          TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Batal', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w600))),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.redAccent,
-              elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
             onPressed: () {
               Navigator.of(context).pop();
               _deleteTask(task.id);
@@ -168,37 +233,6 @@ class _TodoScreenState extends State<TodoScreen> {
     );
   }
 
-  Future<void> _pickDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: DateTime.now(),
-      firstDate: DateTime(2024),
-      lastDate: DateTime(2030),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(colorScheme: const ColorScheme.light(primary: AppColors.primary)),
-          child: child!,
-        );
-      },
-    );
-    if (picked != null) setState(() => _selectedDate = picked);
-  }
-
-  List<Task> get _sortedTasks {
-    final sorted = List<Task>.from(_tasks);
-    sorted.sort((a, b) {
-      if (a.deadline == null && b.deadline == null) return 0;
-      if (a.deadline == null) return 1;
-      if (b.deadline == null) return -1;
-      return a.deadline!.compareTo(b.deadline!);
-    });
-    return sorted;
-  }
-
-  List<Task> get _activeTasks => _sortedTasks.where((t) => !t.isDone).toList();
-  List<Task> get _completedTasks => _sortedTasks.where((t) => t.isDone).toList();
-  List<Task> get _deadlineTasks => _activeTasks.where((t) => _isNearDeadline(t)).toList();
-  int get _remainingCount => _activeTasks.length;
 
   @override
   Widget build(BuildContext context) {
@@ -226,7 +260,9 @@ class _TodoScreenState extends State<TodoScreen> {
                 ),
               ),
               Expanded(
-                child: TabBarView(
+                child: _isLoading
+                    ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+                    : TabBarView(
                   children: [
                     SingleChildScrollView(
                       child: Column(
@@ -238,7 +274,6 @@ class _TodoScreenState extends State<TodoScreen> {
                         ],
                       ),
                     ),
-
                     SingleChildScrollView(
                       child: Column(
                         children: [
@@ -248,10 +283,7 @@ class _TodoScreenState extends State<TodoScreen> {
                         ],
                       ),
                     ),
-
-                    SingleChildScrollView(
-                      child: _buildStatistikTab(),
-                    ),
+                    SingleChildScrollView(child: _buildStatistikTab()),
                   ],
                 ),
               ),
@@ -277,16 +309,11 @@ class _TodoScreenState extends State<TodoScreen> {
               Text('Halo, ${widget.username}! $_remainingCount tugas tersisa', style: AppTextStyles.taskDate),
             ],
           ),
-
           GestureDetector(
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(username: widget.username))),
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: widget.userId, username: widget.username))),
             child: Container(
               padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.1),
-                shape: BoxShape.circle,
-                border: Border.all(color: AppColors.primary.withOpacity(0.3), width: 1.5),
-              ),
+              decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.1), shape: BoxShape.circle, border: Border.all(color: AppColors.primary.withOpacity(0.3), width: 1.5)),
               child: const Icon(Icons.person, color: AppColors.primary, size: 22),
             ),
           ),
@@ -299,11 +326,7 @@ class _TodoScreenState extends State<TodoScreen> {
     return Container(
       margin: const EdgeInsets.fromLTRB(20, 16, 20, 0),
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.deadlineBg,
-        borderRadius: BorderRadius.circular(14),
-        border: Border(left: BorderSide(color: AppColors.deadlineAccent, width: 3)),
-      ),
+      decoration: BoxDecoration(color: AppColors.deadlineBg, borderRadius: BorderRadius.circular(14), border: const Border(left: BorderSide(color: AppColors.deadlineAccent, width: 3))),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -347,32 +370,13 @@ class _TodoScreenState extends State<TodoScreen> {
           TextField(
             controller: _taskController,
             style: const TextStyle(fontSize: 13, color: AppColors.textPrimary),
-            decoration: InputDecoration(
-              hintText: 'Tambah tugas baru...',
-              hintStyle: const TextStyle(color: Color(0xFFBBBBBB), fontSize: 13),
-              filled: true,
-              fillColor: AppColors.cardBackground,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.inputBorder, width: 1.5)),
-              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.inputBorder, width: 1.5)),
-              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
-            ),
+            decoration: InputDecoration(hintText: 'Tambah tugas baru...', hintStyle: const TextStyle(color: Color(0xFFBBBBBB), fontSize: 13), filled: true, fillColor: AppColors.cardBackground, contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.inputBorder, width: 1.5)), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.inputBorder, width: 1.5)), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.primary, width: 1.5))),
           ),
           const SizedBox(height: 8),
           TextField(
             controller: _linkController,
             style: const TextStyle(fontSize: 13, color: AppColors.textPrimary),
-            decoration: InputDecoration(
-              hintText: 'Link pengumpulan (opsional)...',
-              hintStyle: const TextStyle(color: Color(0xFFBBBBBB), fontSize: 13),
-              prefixIcon: const Icon(Icons.link, size: 18, color: Color(0xFFBBBBBB)),
-              filled: true,
-              fillColor: AppColors.cardBackground,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.inputBorder, width: 1.5)),
-              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.inputBorder, width: 1.5)),
-              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
-            ),
+            decoration: InputDecoration(hintText: 'Link pengumpulan (opsional)...', hintStyle: const TextStyle(color: Color(0xFFBBBBBB), fontSize: 13), prefixIcon: const Icon(Icons.link, size: 18, color: Color(0xFFBBBBBB)), filled: true, fillColor: AppColors.cardBackground, contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.inputBorder, width: 1.5)), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.inputBorder, width: 1.5)), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.primary, width: 1.5))),
           ),
           const SizedBox(height: 8),
           Row(
@@ -382,19 +386,12 @@ class _TodoScreenState extends State<TodoScreen> {
                   onTap: _pickDate,
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: AppColors.cardBackground,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: AppColors.inputBorder, width: 1.5),
-                    ),
+                    decoration: BoxDecoration(color: AppColors.cardBackground, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.inputBorder, width: 1.5)),
                     child: Row(
                       children: [
                         const Icon(Icons.calendar_today_outlined, size: 14, color: AppColors.textSecondary),
                         const SizedBox(width: 8),
-                        Text(
-                          _selectedDate != null ? _formatDate(_selectedDate!) : 'dd/mm/yyyy',
-                          style: TextStyle(fontSize: 12, color: _selectedDate != null ? AppColors.textPrimary : const Color(0xFFBBBBBB)),
-                        ),
+                        Text(_selectedDate != null ? _formatDate(_selectedDate!) : 'dd/mm/yyyy', style: TextStyle(fontSize: 12, color: _selectedDate != null ? AppColors.textPrimary : const Color(0xFFBBBBBB))),
                       ],
                     ),
                   ),
@@ -406,10 +403,7 @@ class _TodoScreenState extends State<TodoScreen> {
                 child: Container(
                   width: 40,
                   height: 40,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(colors: [AppColors.primary, AppColors.primaryDark], begin: Alignment.topLeft, end: Alignment.bottomRight),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
+                  decoration: BoxDecoration(gradient: const LinearGradient(colors: [AppColors.primary, AppColors.primaryDark], begin: Alignment.topLeft, end: Alignment.bottomRight), borderRadius: BorderRadius.circular(10)),
                   child: const Icon(Icons.add, color: Colors.white, size: 22),
                 ),
               ),
@@ -421,21 +415,12 @@ class _TodoScreenState extends State<TodoScreen> {
   }
 
   Widget _buildTaskList({required List<Task> tasks, required String emptyMessage}) {
-    if (tasks.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.all(32),
-        child: Text(emptyMessage, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary), textAlign: TextAlign.center),
-      );
-    }
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-      child: Column(children: tasks.map((task) => _buildTaskItem(task)).toList()),
-    );
+    if (tasks.isEmpty) return Padding(padding: const EdgeInsets.all(32), child: Text(emptyMessage, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary), textAlign: TextAlign.center));
+    return Padding(padding: const EdgeInsets.fromLTRB(20, 12, 20, 0), child: Column(children: tasks.map((task) => _buildTaskItem(task)).toList()));
   }
 
   Widget _buildTaskItem(Task task) {
     final label = task.deadline != null ? _getDayLabel(task.deadline!) : null;
-
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -446,17 +431,7 @@ class _TodoScreenState extends State<TodoScreen> {
           children: [
             GestureDetector(
               onTap: () => _toggleTask(task.id),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                width: 22,
-                height: 22,
-                decoration: BoxDecoration(
-                  color: task.isDone ? AppColors.primary : Colors.transparent,
-                  border: Border.all(color: task.isDone ? AppColors.primary : const Color(0xFFD8D0F8), width: 2),
-                  shape: BoxShape.circle,
-                ),
-                child: task.isDone ? const Icon(Icons.check, color: Colors.white, size: 13) : null,
-              ),
+              child: AnimatedContainer(duration: const Duration(milliseconds: 200), width: 22, height: 22, decoration: BoxDecoration(color: task.isDone ? AppColors.primary : Colors.transparent, border: Border.all(color: task.isDone ? AppColors.primary : const Color(0xFFD8D0F8), width: 2), shape: BoxShape.circle), child: task.isDone ? const Icon(Icons.check, color: Colors.white, size: 13) : null),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -471,10 +446,7 @@ class _TodoScreenState extends State<TodoScreen> {
                         const Icon(Icons.calendar_today_outlined, size: 11, color: AppColors.textSecondary),
                         const SizedBox(width: 4),
                         Text(_formatDate(task.deadline!), style: AppTextStyles.taskDate),
-                        if (label != null) ...[
-                          const SizedBox(width: 6),
-                          TagBadge(label: label, textColor: _getTagColor(label), bgColor: _getTagBgColor(label)),
-                        ],
+                        if (label != null) ...[const SizedBox(width: 6), TagBadge(label: label, textColor: _getTagColor(label), bgColor: _getTagBgColor(label))],
                       ],
                     ),
                   ],
@@ -485,26 +457,14 @@ class _TodoScreenState extends State<TodoScreen> {
                       children: [
                         const Icon(Icons.link, size: 12, color: AppColors.primary),
                         const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            task.submissionLink!,
-                            style: const TextStyle(fontSize: 11, color: AppColors.primary, decoration: TextDecoration.underline),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
+                        Expanded(child: Text(task.submissionLink!, style: const TextStyle(fontSize: 11, color: AppColors.primary, decoration: TextDecoration.underline), maxLines: 1, overflow: TextOverflow.ellipsis)),
                       ],
                     ),
                   ],
                 ],
               ),
             ),
-            IconButton(
-              icon: const Icon(Icons.delete_outline, size: 18, color: Color(0xFFCCCCCC)),
-              onPressed: () => _showDeleteConfirmation(task),
-              padding: const EdgeInsets.all(4),
-              constraints: const BoxConstraints(),
-            ),
+            IconButton(icon: const Icon(Icons.delete_outline, size: 18, color: Color(0xFFCCCCCC)), onPressed: () => _showDeleteConfirmation(task), padding: const EdgeInsets.all(4), constraints: const BoxConstraints()),
           ],
         ),
       ),
@@ -575,21 +535,10 @@ class _TodoScreenState extends State<TodoScreen> {
   }
 
   Widget _buildLegend(String label, Color color, String percent) {
-    return Row(
-      children: [
-        Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-        const SizedBox(width: 4),
-        Text('$label ($percent)', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-      ],
-    );
+    return Row(children: [Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)), const SizedBox(width: 4), Text('$label ($percent)', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary))]);
   }
 
   Widget _buildStatItem(String label, String value, Color color) {
-    return Column(
-      children: [
-        Text(value, style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: color)),
-        Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-      ],
-    );
+    return Column(children: [Text(value, style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: color)), Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary))]);
   }
 }

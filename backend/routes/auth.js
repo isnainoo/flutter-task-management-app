@@ -8,7 +8,6 @@ router.post('/register', async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
-    // Cek email sudah terdaftar
     const [existing] = await db.query(
       'SELECT id FROM users WHERE email = ?', [email]
     );
@@ -55,6 +54,37 @@ router.post('/login', async (req, res) => {
       message: 'Login berhasil',
       user: { id: user.id, name: user.name, email: user.email }
     });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// PUT update profile
+router.put('/update-profile/:id', async (req, res) => {
+  try {
+    const { name } = req.body;
+    await db.query('UPDATE users SET name = ? WHERE id = ?', [name, req.params.id]);
+    res.json({ message: 'Profil berhasil diperbarui', name });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// PUT update password
+router.put('/update-password/:id', async (req, res) => {
+  try {
+    const { oldPassword, newPassword } = req.body;
+
+    const [rows] = await db.query('SELECT password FROM users WHERE id = ?', [req.params.id]);
+    if (rows.length === 0) return res.status(404).json({ message: 'User tidak ditemukan' });
+
+    const isMatch = await bcrypt.compare(oldPassword, rows[0].password);
+    if (!isMatch) return res.status(401).json({ message: 'Password lama salah' });
+
+    const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+    await db.query('UPDATE users SET password = ? WHERE id = ?', [hashedNewPassword, req.params.id]);
+
+    res.json({ message: 'Password berhasil diubah' });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
