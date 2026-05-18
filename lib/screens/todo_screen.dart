@@ -45,11 +45,15 @@ class _TodoScreenState extends State<TodoScreen> {
         _isLoading = false;
       });
 
-      if (_deadlineTasks.isNotEmpty) {
-        NotificationService.showDeadlineNotification(
-          title: 'Deadline Mepet! 🚨',
-          body: 'Ada ${_deadlineTasks.length} tugas yang harus segera diselesaikan.',
-        );
+      //Jadwalkan Notifikasi Otomatis
+      for (var task in _activeTasks) {
+        if (task.deadline != null) {
+          NotificationService.scheduleTaskNotifications(
+            taskId: task.id,
+            taskName: task.name,
+            deadline: task.deadline!,
+          );
+        }
       }
 
     } catch (e) {
@@ -84,7 +88,7 @@ class _TodoScreenState extends State<TodoScreen> {
     }
   }
 
-  Future<void> _toggleTask(int id) async {
+Future<void> _toggleTask(int id) async {
     final taskIndex = _tasks.indexWhere((t) => t.id == id);
     if (taskIndex == -1) return;
 
@@ -97,6 +101,19 @@ class _TodoScreenState extends State<TodoScreen> {
       _tasks[taskIndex].completedAt = newCompletedAt;
     });
 
+    // Jadwalkan Ulang Notifikasi 
+    if (newIsDone) {
+      // Jika tugas selesai, batalkan semua notifikasinya
+      NotificationService.cancelTaskNotifications(id);
+    } else if (task.deadline != null) {
+      // Jika user membatalkan ceklis (tugas kembali aktif), jadwalkan ulang
+      NotificationService.scheduleTaskNotifications(
+        taskId: id,
+        taskName: task.name,
+        deadline: task.deadline!,
+      );
+    }
+
     await ApiService.updateTask(
       id: id,
       name: task.name,
@@ -107,10 +124,13 @@ class _TodoScreenState extends State<TodoScreen> {
     );
   }
 
-  Future<void> _deleteTask(int id) async {
+Future<void> _deleteTask(int id) async {
     setState(() {
       _tasks.removeWhere((t) => t.id == id);
     });
+    
+    //  Batalkan Notifikasi Tugas yang Dihapus 
+    NotificationService.cancelTaskNotifications(id);
     await ApiService.deleteTask(id);
   }
 
