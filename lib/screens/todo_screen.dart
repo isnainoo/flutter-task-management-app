@@ -3,9 +3,9 @@ import '../constants/app_theme.dart';
 import '../models/task.dart';
 import '../widgets/app_widgets.dart';
 import '../services/api_service.dart';
+import '../services/notification_service.dart';
 import 'profile_screen.dart';
 import 'login_screen.dart';
-import '../services/notification_service.dart';
 
 class TodoScreen extends StatefulWidget {
   final int userId;
@@ -28,13 +28,14 @@ class _TodoScreenState extends State<TodoScreen> {
   DateTime? _selectedDate;
   bool _isLoading = true;
 
+  late String _currentUsername;
+
   @override
   void initState() {
     super.initState();
+    _currentUsername = widget.username;
     _fetchTasks();
   }
-
-  // API DATABASE
 
   Future<void> _fetchTasks() async {
     setState(() => _isLoading = true);
@@ -45,7 +46,6 @@ class _TodoScreenState extends State<TodoScreen> {
         _isLoading = false;
       });
 
-      //Jadwalkan Notifikasi Otomatis
       for (var task in _activeTasks) {
         if (task.deadline != null) {
           NotificationService.scheduleTaskNotifications(
@@ -56,9 +56,17 @@ class _TodoScreenState extends State<TodoScreen> {
         }
       }
 
+      if (_deadlineTasks.isNotEmpty) {
+        NotificationService.showDeadlineNotification(
+          title: 'Deadline Mepet! 🚨',
+          body: 'Halo $_currentUsername, ada ${_deadlineTasks.length} tugas yang harus segera diselesaikan.',
+        );
+      }
     } catch (e) {
       setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gagal memuat data dari server.')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gagal memuat data dari server.')));
+      }
     }
   }
 
@@ -67,7 +75,7 @@ class _TodoScreenState extends State<TodoScreen> {
     final link = _linkController.text.trim();
     if (name.isEmpty) return;
 
-    showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
+    showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator(color: AppColors.primary)));
 
     final response = await ApiService.addTask(
       userId: widget.userId,
@@ -76,6 +84,7 @@ class _TodoScreenState extends State<TodoScreen> {
       submissionLink: link.isNotEmpty ? link : null,
     );
 
+    if (!mounted) return;
     Navigator.pop(context);
 
     if (response['message'] == 'Task ditambahkan') {
@@ -88,7 +97,7 @@ class _TodoScreenState extends State<TodoScreen> {
     }
   }
 
-Future<void> _toggleTask(int id) async {
+  Future<void> _toggleTask(int id) async {
     final taskIndex = _tasks.indexWhere((t) => t.id == id);
     if (taskIndex == -1) return;
 
@@ -101,12 +110,9 @@ Future<void> _toggleTask(int id) async {
       _tasks[taskIndex].completedAt = newCompletedAt;
     });
 
-    // Jadwalkan Ulang Notifikasi 
     if (newIsDone) {
-      // Jika tugas selesai, batalkan semua notifikasinya
       NotificationService.cancelTaskNotifications(id);
     } else if (task.deadline != null) {
-      // Jika user membatalkan ceklis (tugas kembali aktif), jadwalkan ulang
       NotificationService.scheduleTaskNotifications(
         taskId: id,
         taskName: task.name,
@@ -124,12 +130,10 @@ Future<void> _toggleTask(int id) async {
     );
   }
 
-Future<void> _deleteTask(int id) async {
+  Future<void> _deleteTask(int id) async {
     setState(() {
       _tasks.removeWhere((t) => t.id == id);
     });
-    
-    //  Batalkan Notifikasi Tugas yang Dihapus 
     NotificationService.cancelTaskNotifications(id);
     await ApiService.deleteTask(id);
   }
@@ -140,7 +144,6 @@ Future<void> _deleteTask(int id) async {
     _linkController.dispose();
     super.dispose();
   }
-
 
   String _getDayLabel(DateTime date) {
     final today = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
@@ -253,7 +256,6 @@ Future<void> _deleteTask(int id) async {
     );
   }
 
-
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
@@ -284,26 +286,30 @@ Future<void> _deleteTask(int id) async {
                     ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
                     : TabBarView(
                   children: [
-                    SingleChildScrollView(
-                      child: Column(
-                        children: [
-                          if (_deadlineTasks.isNotEmpty) _buildDeadlineBox(),
-                          _buildAddTask(),
-                          _buildTaskList(tasks: _activeTasks, emptyMessage: 'Belum ada tugas. Tambahkan sekarang!'),
-                          const SizedBox(height: 24),
-                        ],
-                      ),
+                    ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.only(bottom: 30),
+                      children: [
+                        if (_deadlineTasks.isNotEmpty) _buildDeadlineBox(),
+                        _buildAddTask(),
+                        _buildTaskList(tasks: _activeTasks, emptyMessage: 'Belum ada tugas. Tambahkan sekarang!'),
+                      ],
                     ),
-                    SingleChildScrollView(
-                      child: Column(
-                        children: [
-                          const SizedBox(height: 16),
-                          _buildTaskList(tasks: _completedTasks, emptyMessage: 'Belum ada tugas yang diselesaikan. Semangat!'),
-                          const SizedBox(height: 24),
-                        ],
-                      ),
+                    ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.only(bottom: 30),
+                      children: [
+                        const SizedBox(height: 16),
+                        _buildTaskList(tasks: _completedTasks, emptyMessage: 'Belum ada tugas yang diselesaikan. Semangat!'),
+                      ],
                     ),
-                    SingleChildScrollView(child: _buildStatistikTab()),
+                    ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.only(bottom: 30),
+                      children: [
+                        _buildStatistikTab(),
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -326,11 +332,20 @@ Future<void> _deleteTask(int id) async {
             children: [
               const Text('To-Do List', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
               const SizedBox(height: 2),
-              Text('Halo, ${widget.username}! $_remainingCount tugas tersisa', style: AppTextStyles.taskDate),
+              Text('Halo, $_currentUsername! $_remainingCount tugas tersisa', style: AppTextStyles.taskDate),
             ],
           ),
           GestureDetector(
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: widget.userId, username: widget.username))),
+            onTap: () async {
+              final newName = await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => ProfileScreen(userId: widget.userId, username: _currentUsername))
+              );
+
+              if (newName != null && newName is String) {
+                setState(() => _currentUsername = newName);
+              }
+            },
             child: Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.1), shape: BoxShape.circle, border: Border.all(color: AppColors.primary.withOpacity(0.3), width: 1.5)),
