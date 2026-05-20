@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../constants/app_theme.dart';
 import '../models/task.dart';
 import '../widgets/app_widgets.dart';
 import '../services/api_service.dart';
 import '../services/notification_service.dart';
 import 'profile_screen.dart';
-import 'login_screen.dart';
 
 class TodoScreen extends StatefulWidget {
   final int userId;
@@ -40,7 +40,6 @@ class _TodoScreenState extends State<TodoScreen> {
     _fetchTasks();
   }
 
-
   Future<void> _fetchTasks() async {
     setState(() => _isLoading = true);
     try {
@@ -66,7 +65,7 @@ class _TodoScreenState extends State<TodoScreen> {
 
         if (_deadlineTasks.isNotEmpty) {
           NotificationService.showDeadlineNotification(
-            title: 'Awas Deadline Mepet! 🚨',
+            title: 'Deadline Mepet! 🚨',
             body: 'Halo $_currentUsername, ada ${_deadlineTasks.length} tugas yang harus segera diselesaikan.',
           );
         }
@@ -150,6 +149,24 @@ class _TodoScreenState extends State<TodoScreen> {
     });
     NotificationService.cancelTaskNotifications(id);
     await ApiService.deleteTask(id);
+  }
+
+  Future<void> _launchURL(String urlString) async {
+    String formattedUrl = urlString.trim();
+    if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
+      formattedUrl = 'https://$formattedUrl';
+    }
+
+    final Uri url = Uri.parse(formattedUrl);
+    try {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Tidak dapat membuka tautan. Format salah atau browser tidak ditemukan.')),
+        );
+      }
+    }
   }
 
   @override
@@ -334,7 +351,6 @@ class _TodoScreenState extends State<TodoScreen> {
     );
   }
 
-
   Widget _buildHeader() {
     return Container(
       color: AppColors.cardBackground,
@@ -372,7 +388,6 @@ class _TodoScreenState extends State<TodoScreen> {
       ),
     );
   }
-
 
   Widget _buildDeadlineBox() {
     return Container(
@@ -466,7 +481,6 @@ class _TodoScreenState extends State<TodoScreen> {
     );
   }
 
-
   Widget _buildTaskList({required List<Task> tasks, required String emptyMessage}) {
     if (tasks.isEmpty) return Padding(padding: const EdgeInsets.all(32), child: Text(emptyMessage, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary), textAlign: TextAlign.center));
     return Padding(padding: const EdgeInsets.fromLTRB(20, 12, 20, 0), child: Column(children: tasks.map((task) => _buildTaskItem(task)).toList()));
@@ -505,13 +519,23 @@ class _TodoScreenState extends State<TodoScreen> {
                   ],
                   if (task.submissionLink != null && task.submissionLink!.isNotEmpty) ...[
                     const SizedBox(height: 6),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.link, size: 12, color: AppColors.primary),
-                        const SizedBox(width: 4),
-                        Expanded(child: Text(task.submissionLink!, style: const TextStyle(fontSize: 11, color: AppColors.primary, decoration: TextDecoration.underline), maxLines: 1, overflow: TextOverflow.ellipsis)),
-                      ],
+                    GestureDetector(
+                      onTap: () => _launchURL(task.submissionLink!),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.link, size: 12, color: AppColors.primary),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                                task.submissionLink!,
+                                style: const TextStyle(fontSize: 11, color: AppColors.primary, decoration: TextDecoration.underline),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ],
@@ -523,7 +547,6 @@ class _TodoScreenState extends State<TodoScreen> {
       ),
     );
   }
-
 
   Widget _buildStatistikTab() {
     final total = _completedTasks.length;
@@ -588,11 +611,9 @@ class _TodoScreenState extends State<TodoScreen> {
     );
   }
 
-
   Widget _buildLegend(String label, Color color, String percent) {
     return Row(children: [Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)), const SizedBox(width: 4), Text('$label ($percent)', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary))]);
   }
-
 
   Widget _buildStatItem(String label, String value, Color color) {
     return Column(children: [Text(value, style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: color)), Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary))]);
