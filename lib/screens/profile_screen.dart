@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/app_theme.dart';
 import '../services/api_service.dart';
 import '../services/notification_service.dart';
@@ -17,14 +18,20 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   late String _currentUsername;
-  late String _displayEmail;
   bool _isNotifEnabled = true;
 
   @override
   void initState() {
     super.initState();
     _currentUsername = widget.username;
-    _displayEmail = '${widget.username.toLowerCase().replaceAll(' ', '')}@email.com';
+    _loadNotifSetting();
+  }
+
+  Future<void> _loadNotifSetting() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _isNotifEnabled = prefs.getBool('is_notif_enabled') ?? true;
+    });
   }
 
   void _showLogoutDialog(BuildContext context) {
@@ -216,14 +223,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   trailing: Switch(
                     value: _isNotifEnabled,
                     activeColor: AppColors.primary,
-                    onChanged: (value) {
+                    onChanged: (value) async {
                       setState(() => _isNotifEnabled = value);
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value ? 'Notifikasi dihidupkan' : 'Notifikasi dimatikan'), duration: const Duration(seconds: 1)));
+
+                      final prefs = await SharedPreferences.getInstance();
+                      await prefs.setBool('is_notif_enabled', value);
+
                       if (value) {
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Notifikasi dihidupkan'), duration: Duration(seconds: 1)));
                         NotificationService.showDeadlineNotification(
                           title: 'Notifikasi Aktif 🔔',
                           body: 'Kami akan mengingatkan tugas yang mepet hari ini dan besok!',
                         );
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Notifikasi dimatikan'), duration: Duration(seconds: 1)));
                       }
                     },
                   ),

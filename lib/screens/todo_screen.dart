@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/app_theme.dart';
 import '../models/task.dart';
 import '../widgets/app_widgets.dart';
@@ -39,6 +40,7 @@ class _TodoScreenState extends State<TodoScreen> {
     _fetchTasks();
   }
 
+
   Future<void> _fetchTasks() async {
     setState(() => _isLoading = true);
     try {
@@ -48,22 +50,28 @@ class _TodoScreenState extends State<TodoScreen> {
         _isLoading = false;
       });
 
-      for (var task in _activeTasks) {
-        if (task.deadline != null) {
-          NotificationService.scheduleTaskNotifications(
-            taskId: task.id,
-            taskName: task.name,
-            deadline: task.deadline!,
+      final prefs = await SharedPreferences.getInstance();
+      final isNotifEnabled = prefs.getBool('is_notif_enabled') ?? true;
+
+      if (isNotifEnabled) {
+        for (var task in _activeTasks) {
+          if (task.deadline != null) {
+            NotificationService.scheduleTaskNotifications(
+              taskId: task.id,
+              taskName: task.name,
+              deadline: task.deadline!,
+            );
+          }
+        }
+
+        if (_deadlineTasks.isNotEmpty) {
+          NotificationService.showDeadlineNotification(
+            title: 'Awas Deadline Mepet! 🚨',
+            body: 'Halo $_currentUsername, ada ${_deadlineTasks.length} tugas yang harus segera diselesaikan.',
           );
         }
       }
 
-      if (_deadlineTasks.isNotEmpty) {
-        NotificationService.showDeadlineNotification(
-          title: 'Deadline Mepet! 🚨',
-          body: 'Halo $_currentUsername, ada ${_deadlineTasks.length} tugas yang harus segera diselesaikan.',
-        );
-      }
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
@@ -115,11 +123,15 @@ class _TodoScreenState extends State<TodoScreen> {
     if (newIsDone) {
       NotificationService.cancelTaskNotifications(id);
     } else if (task.deadline != null) {
-      NotificationService.scheduleTaskNotifications(
-        taskId: id,
-        taskName: task.name,
-        deadline: task.deadline!,
-      );
+      final prefs = await SharedPreferences.getInstance();
+      final isNotifEnabled = prefs.getBool('is_notif_enabled') ?? true;
+      if (isNotifEnabled) {
+        NotificationService.scheduleTaskNotifications(
+          taskId: id,
+          taskName: task.name,
+          deadline: task.deadline!,
+        );
+      }
     }
 
     await ApiService.updateTask(
@@ -322,6 +334,7 @@ class _TodoScreenState extends State<TodoScreen> {
     );
   }
 
+
   Widget _buildHeader() {
     return Container(
       color: AppColors.cardBackground,
@@ -346,6 +359,7 @@ class _TodoScreenState extends State<TodoScreen> {
 
               if (newName != null && newName is String) {
                 setState(() => _currentUsername = newName);
+                _fetchTasks();
               }
             },
             child: Container(
@@ -358,6 +372,7 @@ class _TodoScreenState extends State<TodoScreen> {
       ),
     );
   }
+
 
   Widget _buildDeadlineBox() {
     return Container(
@@ -451,6 +466,7 @@ class _TodoScreenState extends State<TodoScreen> {
     );
   }
 
+
   Widget _buildTaskList({required List<Task> tasks, required String emptyMessage}) {
     if (tasks.isEmpty) return Padding(padding: const EdgeInsets.all(32), child: Text(emptyMessage, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary), textAlign: TextAlign.center));
     return Padding(padding: const EdgeInsets.fromLTRB(20, 12, 20, 0), child: Column(children: tasks.map((task) => _buildTaskItem(task)).toList()));
@@ -507,6 +523,7 @@ class _TodoScreenState extends State<TodoScreen> {
       ),
     );
   }
+
 
   Widget _buildStatistikTab() {
     final total = _completedTasks.length;
@@ -571,9 +588,11 @@ class _TodoScreenState extends State<TodoScreen> {
     );
   }
 
+
   Widget _buildLegend(String label, Color color, String percent) {
     return Row(children: [Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)), const SizedBox(width: 4), Text('$label ($percent)', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary))]);
   }
+
 
   Widget _buildStatItem(String label, String value, Color color) {
     return Column(children: [Text(value, style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: color)), Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary))]);
