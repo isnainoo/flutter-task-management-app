@@ -3,6 +3,7 @@ import '../constants/app_theme.dart';
 import '../widgets/app_widgets.dart';
 import '../services/api_service.dart';
 import 'todo_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -16,6 +17,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmController = TextEditingController();
+
   bool _isLoading = false;
 
   void _register() async {
@@ -24,24 +26,43 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final password = _passwordController.text;
     final confirm = _confirmController.text;
 
-    if (name.isEmpty || email.isEmpty || password.isEmpty || confirm.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Semua field harus diisi.')));
+    if (name.isEmpty ||
+        email.isEmpty ||
+        password.isEmpty ||
+        confirm.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Semua field harus diisi.'),
+        ),
+      );
       return;
     }
 
     if (password.length < 6) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password minimal 6 karakter.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Password minimal 6 karakter.'),
+        ),
+      );
       return;
     }
 
     if (password != confirm) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Konfirmasi password tidak cocok.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Konfirmasi password tidak cocok.'),
+        ),
+      );
       return;
     }
 
     setState(() => _isLoading = true);
 
-    final response = await ApiService.register(name, email, password);
+    final response = await ApiService.register(
+      name,
+      email,
+      password,
+    );
 
     setState(() => _isLoading = false);
 
@@ -49,13 +70,34 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     if (response['message'] == 'Registrasi berhasil') {
       final user = response['user'];
+
+      final prefs = await SharedPreferences.getInstance();
+
+      await prefs.setInt('user_id', user['id']);
+      await prefs.setString('username', user['name']);
+      await prefs.setString('email', user['email']);
+
+      if (!mounted) return;
+
       Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(builder: (_) => TodoScreen(userId: user['id'], username: user['name'], email: user['email'])),
+        MaterialPageRoute(
+          builder: (_) => TodoScreen(
+            userId: user['id'],
+            username: user['name'],
+            email: user['email'],
+          ),
+        ),
             (route) => false,
       );
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(response['message'] ?? 'Gagal mendaftar')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            response['message'] ?? 'Gagal mendaftar',
+          ),
+        ),
+      );
     }
   }
 
@@ -79,36 +121,96 @@ class _RegisterScreenState extends State<RegisterScreen> {
             decoration: BoxDecoration(
               color: AppColors.cardBackground,
               borderRadius: BorderRadius.circular(20),
-              boxShadow: [BoxShadow(color: const Color(0xFF7C5CFC).withOpacity(0.07), blurRadius: 24, offset: const Offset(0, 4))],
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF7C5CFC).withOpacity(0.07),
+                  blurRadius: 24,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
             padding: const EdgeInsets.all(24),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const AvatarCircle(icon: Icons.person_add_outlined),
+                const AvatarCircle(
+                  icon: Icons.person_add_outlined,
+                ),
+
                 const SizedBox(height: 16),
-                const Text('Buat Akun Baru', style: AppTextStyles.screenTitle),
+
+                const Text(
+                  'Buat Akun Baru',
+                  style: AppTextStyles.screenTitle,
+                ),
+
                 const SizedBox(height: 24),
 
-                _buildField('Nama Lengkap', 'Nama Anda', Icons.person_outline, _nameController),
+                _buildField(
+                  'Nama Lengkap',
+                  'Nama Anda',
+                  Icons.person_outline,
+                  _nameController,
+                ),
+
                 const SizedBox(height: 16),
-                _buildField('Email', 'nama@email.com', Icons.email_outlined, _emailController, keyboardType: TextInputType.emailAddress),
+
+                _buildField(
+                  'Email',
+                  'nama@email.com',
+                  Icons.email_outlined,
+                  _emailController,
+                  keyboardType: TextInputType.emailAddress,
+                ),
+
                 const SizedBox(height: 16),
-                _buildField('Password', 'Minimal 6 karakter', Icons.lock_outline, _passwordController, obscure: true),
+
+                _buildField(
+                  'Password',
+                  'Minimal 6 karakter',
+                  Icons.lock_outline,
+                  _passwordController,
+                  obscure: true,
+                ),
+
                 const SizedBox(height: 16),
-                _buildField('Konfirmasi Password', 'Ulangi password', Icons.lock_outline, _confirmController, obscure: true),
+
+                _buildField(
+                  'Konfirmasi Password',
+                  'Ulangi password',
+                  Icons.lock_outline,
+                  _confirmController,
+                  obscure: true,
+                ),
+
                 const SizedBox(height: 24),
 
                 _isLoading
-                    ? const CircularProgressIndicator(color: AppColors.primary)
-                    : PrimaryButton(label: 'Daftar', onPressed: _register),
+                    ? const CircularProgressIndicator(
+                  color: AppColors.primary,
+                )
+                    : PrimaryButton(
+                  label: 'Daftar',
+                  onPressed: _register,
+                ),
+
                 const SizedBox(height: 16),
 
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text('Sudah punya akun? ', style: AppTextStyles.linkText),
-                    GestureDetector(onTap: () => Navigator.pop(context), child: const Text('Masuk di sini', style: AppTextStyles.linkHighlight)),
+                    const Text(
+                      'Sudah punya akun? ',
+                      style: AppTextStyles.linkText,
+                    ),
+
+                    GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: const Text(
+                        'Masuk di sini',
+                        style: AppTextStyles.linkHighlight,
+                      ),
+                    ),
                   ],
                 ),
               ],
@@ -119,13 +221,31 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  Widget _buildField(String label, String placeholder, IconData icon, TextEditingController controller, {bool obscure = false, TextInputType keyboardType = TextInputType.text}) {
+  Widget _buildField(
+      String label,
+      String placeholder,
+      IconData icon,
+      TextEditingController controller, {
+        bool obscure = false,
+        TextInputType keyboardType = TextInputType.text,
+      }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: AppTextStyles.fieldLabel),
+        Text(
+          label,
+          style: AppTextStyles.fieldLabel,
+        ),
+
         const SizedBox(height: 6),
-        AppTextField(placeholder: placeholder, icon: icon, obscure: obscure, controller: controller, keyboardType: keyboardType),
+
+        AppTextField(
+          placeholder: placeholder,
+          icon: icon,
+          obscure: obscure,
+          controller: controller,
+          keyboardType: keyboardType,
+        ),
       ],
     );
   }

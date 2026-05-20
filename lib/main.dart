@@ -1,17 +1,32 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/login_screen.dart';
+import 'screens/todo_screen.dart';
 import 'services/notification_service.dart';
-
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await NotificationService.initialize();
 
-  runApp(const MyApp());
+  final prefs = await SharedPreferences.getInstance();
+  final userId = prefs.getInt('user_id');
+  final username = prefs.getString('username');
+  final email = prefs.getString('email');
+
+  Widget initialScreen;
+
+  if (userId != null && username != null && email != null) {
+    initialScreen = TodoScreen(userId: userId, username: username, email: email);
+  } else {
+    initialScreen = const LoginScreen();
+  }
+  runApp(MyApp(initialScreen: initialScreen));
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final Widget initialScreen;
+
+  const MyApp({super.key, required this.initialScreen});
 
   @override
   Widget build(BuildContext context) {
@@ -27,7 +42,7 @@ class MyApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      home: const LoginScreen(),
+      home: initialScreen,
     );
   }
 }
