@@ -51,7 +51,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       final user = response['user'];
       Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(builder: (_) => TodoScreen(userId: user['id'], username: user['name'])),
+        MaterialPageRoute(builder: (_) => TodoScreen(userId: user['id'], username: user['name'], email: user['email'])),
             (route) => false,
       );
     } else {

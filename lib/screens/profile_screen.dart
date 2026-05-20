@@ -7,8 +7,9 @@ import 'login_screen.dart';
 class ProfileScreen extends StatefulWidget {
   final int userId;
   final String username;
+  final String email;
 
-  const ProfileScreen({super.key, required this.userId, required this.username});
+  const ProfileScreen({super.key, required this.userId, required this.username, required this.email});
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -16,12 +17,14 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   late String _currentUsername;
+  late String _displayEmail;
   bool _isNotifEnabled = true;
 
   @override
   void initState() {
     super.initState();
     _currentUsername = widget.username;
+    _displayEmail = '${widget.username.toLowerCase().replaceAll(' ', '')}@email.com';
   }
 
   void _showLogoutDialog(BuildContext context) {
@@ -198,7 +201,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               const SizedBox(height: 16),
               Text(_currentUsername, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-              Text('${_currentUsername.toLowerCase().replaceAll(' ', '')}@email.com', style: const TextStyle(fontSize: 14, color: AppColors.textSecondary)),
+              Text(widget.email, style: const TextStyle(fontSize: 14, color: AppColors.textSecondary)),
               const SizedBox(height: 32),
 
               _buildMenuTile(icon: Icons.edit_outlined, title: 'Edit Profil', onTap: _showEditProfileDialog),

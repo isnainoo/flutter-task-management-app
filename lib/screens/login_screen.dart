@@ -40,7 +40,7 @@ class _LoginScreenState extends State<LoginScreen> {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => TodoScreen(userId: user['id'], username: user['name']),
+          builder: (_) => TodoScreen(userId: user['id'], username: user['name'], email: user['email']),
         ),
       );
     } else {

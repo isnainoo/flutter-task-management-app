@@ -10,11 +10,13 @@ import 'login_screen.dart';
 class TodoScreen extends StatefulWidget {
   final int userId;
   final String username;
+  final String email;
 
   const TodoScreen({
     super.key,
     required this.userId,
     required this.username,
+    required this.email,
   });
 
   @override
@@ -339,7 +341,7 @@ class _TodoScreenState extends State<TodoScreen> {
             onTap: () async {
               final newName = await Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => ProfileScreen(userId: widget.userId, username: _currentUsername))
+                  MaterialPageRoute(builder: (_) => ProfileScreen(userId: widget.userId, username: _currentUsername, email: widget.email))
               );
 
               if (newName != null && newName is String) {
